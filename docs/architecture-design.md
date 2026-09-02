@@ -1,186 +1,165 @@
-**Architecture Advisor Agent — Design Stage Proposal**
+## Architecture Proposal: AI Part Lookup Assistant (Design Stage)
 
 ---
 
-## 1. Solution Architecture Overview
+### 1. Solution Overview
 
-**Project:** AI Part Lookup Assistant  
-**Goal:** Provide engineers with a unified web interface for part lookup, aggregating inventory, supplier, purchase order, and delivery data from multiple systems, summarized by an AI assistant.
+**Objective:**  
+Deliver a web-based assistant that enables engineers to search for part numbers and receive consolidated, AI-generated summaries of inventory, supplier, purchase order, and delivery data. The solution will integrate multiple backend systems via APIs, normalize and aggregate data, and present actionable recommendations in plain English.
 
 **Target Environment:** Dev
 
 ---
 
-### 2. Architectural Recommendations
+### 2. Architecture Recommendations
 
-#### 2.1. High-Level Components
+#### 2.1 High-Level System Components
 
 - **Frontend Web Application**
-  - Simple search box for part number entry.
-  - Results display with summary and actionable recommendations.
-- **Backend API Gateway**
-  - Aggregates data from inventory, supplier, PO, and delivery systems.
-  - Exposes unified REST endpoints.
-- **Data Integration Layer**
-  - Connects to external inventory and supply chain APIs.
+  - Search interface for part number entry.
+  - Results display with AI-generated summaries.
+  - Error and status notifications.
+
+- **API Gateway (Azure API Management)**
+  - Central entry point for all API requests.
+  - Routing, authentication, throttling, and logging.
+
+- **Backend Aggregation Service**
+  - Orchestrates calls to inventory, supplier, PO, and delivery APIs.
   - Normalizes and aggregates data.
-- **AI Summarization Service**
-  - Receives aggregated data.
-  - Generates plain-English summaries and next-step recommendations.
-- **Error Handling & Logging**
-  - Centralized error reporting and user feedback.
-- **Security & Compliance Controls**
-  - API authentication, input validation, and threat mitigation.
+  - Handles partial failures and error reporting.
 
-#### 2.2. Technology Stack (Dev Environment)
+- **AI Summarization Engine**
+  - Receives normalized data.
+  - Generates plain English summaries and recommendations.
+  - Hosted via Microsoft Agent Framework.
 
-- **Frontend:** React (or similar SPA framework)
-- **Backend:** Node.js/Express or .NET Core Web API
-- **API Gateway:** Azure API Management
-- **Data Integration:** Azure Functions or Logic Apps (for orchestrating API calls)
-- **AI Summarization:** Azure OpenAI Service (GPT-based summarization)
-- **Authentication:** Azure AD or OAuth2 (for API access)
-- **Logging/Monitoring:** Azure Application Insights
+- **External Data Systems**
+  - Inventory System API
+  - Supplier System API
+  - Purchase Order System API
+  - Delivery Tracking API
 
 ---
 
-### 3. Architecture Decision Records (ADR)
+#### 2.2 Data & API Contracts
 
-#### ADR-001: Unified API Gateway
-- **Decision:** All external system integrations will be routed through Azure API Management for centralized control, throttling, and observability.
-- **Rationale:** Simplifies integration, improves security, and supports future scalability.
+**API Gateway Contract (Sample):**
 
-#### ADR-002: AI Summarization via Azure OpenAI
-- **Decision:** Summarization will be handled by Azure OpenAI Service, invoked from backend after data aggregation.
-- **Rationale:** Provides reliable, scalable, and auditable AI summarization.
-
-#### ADR-003: Data Normalization Contract
-- **Decision:** Data from external systems will be normalized to a common schema before summarization.
-- **Rationale:** Ensures consistent, predictable input for AI and frontend display.
-
-#### ADR-004: Error Handling Strategy
-- **Decision:** All errors (API failures, missing data) will be logged and surfaced to users with actionable messages.
-- **Rationale:** Improves user experience and troubleshooting.
-
----
-
-### 4. Data & API Contracts
-
-#### 4.1. Unified Part Lookup API (Backend → Frontend)
-
-**Endpoint:** `POST /api/part-lookup`  
-**Request:**
-```json
-{
-  "partNumber": "string"
-}
-```
-**Response:**
-```json
-{
-  "partNumber": "string",
-  "inventory": {
-    "quantity": "number",
-    "location": "string"
-  },
-  "supplier": {
-    "name": "string",
-    "contact": "string"
-  },
-  "purchaseOrders": [
-    {
-      "poNumber": "string",
-      "status": "string",
-      "expectedDelivery": "string"
-    }
-  ],
-  "delivery": {
-    "expectedDate": "string",
-    "status": "string"
-  },
-  "aiSummary": "string",
-  "recommendations": ["string"],
-  "errors": ["string"]
-}
+```yaml
+POST /part-lookup
+Request:
+  {
+    "partNumber": "string"
+  }
+Response:
+  {
+    "inventory": { ... },
+    "supplier": { ... },
+    "purchaseOrder": { ... },
+    "delivery": { ... },
+    "summary": "string",
+    "recommendations": ["string"],
+    "errors": ["string"]
+  }
 ```
 
-#### 4.2. External API Integration Contracts
+**Backend Aggregation Service Contracts:**
 
-- **Inventory System:**  
-  - Authenticated REST API, returns inventory levels and locations.
-- **Supplier System:**  
-  - Authenticated REST API, returns supplier details.
-- **PO System:**  
-  - Authenticated REST API, returns purchase order status and delivery dates.
-- **Delivery System:**  
-  - Authenticated REST API, returns delivery status and expected dates.
+- **Inventory API**
+  - Request: `{ "partNumber": "string" }`
+  - Response: `{ "availableQuantity": int, "location": "string", "lastUpdated": "datetime" }`
 
-**All external API responses are treated as untrusted data and validated before use.**
+- **Supplier API**
+  - Request: `{ "partNumber": "string" }`
+  - Response: `{ "supplierName": "string", "leadTimeDays": int, "contact": "string" }`
 
----
+- **PO API**
+  - Request: `{ "partNumber": "string" }`
+  - Response: `{ "openPOs": [{ "poNumber": "string", "quantity": int, "expectedDelivery": "datetime" }] }`
 
-### 5. Threat Model Considerations
-
-- **Input Validation:** All user and external API inputs validated to prevent injection and malformed data.
-- **Authentication:** API access secured via Azure AD/OAuth2; no secrets exposed in code or logs.
-- **Data Privacy:** No sensitive data stored; only transient processing.
-- **Error Handling:** No sensitive system details exposed to users.
-- **Rate Limiting:** API Gateway enforces throttling to prevent abuse.
-- **Logging:** Centralized logging with PII redaction.
-- **AI Safety:** Summarization prompts and outputs reviewed for accuracy and safety.
+- **Delivery API**
+  - Request: `{ "partNumber": "string" }`
+  - Response: `{ "shipments": [{ "trackingNumber": "string", "status": "string", "estimatedArrival": "datetime" }] }`
 
 ---
 
-### 6. Implementable Technical Plan
+#### 2.3 Decision Records
 
-#### 6.1. Component Implementation
-
-- **Frontend:**  
-  - Build search box and results display (React).
-  - Integrate with backend API for part lookup.
-
-- **Backend API:**  
-  - Implement `/api/part-lookup` endpoint.
-  - Orchestrate calls to external systems via Azure API Management.
-  - Aggregate and normalize data.
-  - Invoke Azure OpenAI for summarization.
-  - Return unified response to frontend.
-
-- **Data Integration:**  
-  - Configure Azure Functions/Logic Apps for external API calls.
-  - Validate and normalize external data.
-
-- **AI Summarization:**  
-  - Design prompt templates for summarization.
-  - Integrate Azure OpenAI API.
-
-- **Security & Compliance:**  
-  - Configure Azure AD authentication.
-  - Implement input validation and error handling.
-
-- **Monitoring & Logging:**  
-  - Set up Azure Application Insights.
-  - Log all API interactions and errors.
-
-#### 6.2. Testing & Documentation
-
-- **Unit & Integration Tests:**  
-  - Test each component and API contract.
-- **API Documentation:**  
-  - Document endpoints, request/response schemas, error codes.
-- **Summarization Logic:**  
-  - Document prompt design and expected outputs.
+| Decision | Rationale | Alternatives | Status |
+|----------|-----------|--------------|--------|
+| Use Azure API Management as API Gateway | Centralized control, security, and logging | Custom gateway | Approved |
+| Aggregate backend data before AI summarization | Ensures consistent input for AI, simplifies error handling | Direct AI on raw data | Approved |
+| AI summarization via Microsoft Agent Framework | Standardizes AI integration, leverages existing orchestration | Custom AI integration | Approved |
+| Mock external APIs in Dev | Enables development without full system access | Require live systems | Approved |
 
 ---
 
-### 7. Reviewable Proposal Summary
+#### 2.4 Threat Model Considerations
 
-- **Architecture:** Modular web app with API gateway, data integration, and AI summarization.
-- **Decisions:** Centralized API management, Azure OpenAI for summarization, normalized data contracts.
-- **Security:** Input validation, authentication, error handling, threat mitigation.
-- **Technical Plan:** Stepwise implementation of frontend, backend, integration, AI, and monitoring.
-- **Next Steps:** Human review, approval, and refinement before build stage.
+- **Input Validation:** All incoming data (part numbers, API responses) must be validated and sanitized.
+- **Authentication & Authorization:** API Gateway enforces authentication; backend services validate user permissions.
+- **Error Handling:** Partial failures are surfaced to the user with actionable messages; sensitive error details are not exposed.
+- **Rate Limiting:** API Gateway applies throttling to prevent abuse.
+- **Data Privacy:** No sensitive supplier or PO data is exposed beyond what is necessary for engineering decisions.
+- **Logging & Monitoring:** All API calls and AI summarization operations are logged for audit and troubleshooting.
+- **External Data Trust:** Treat all API responses as untrusted; apply schema validation and anomaly detection.
 
 ---
 
-**Please review this proposal for approval or feedback before proceeding to implementation.**
+#### 2.5 Implementable Technical Plan
+
+**Phase 1: Interface & Wireframes**
+- Design wireframes for search and results display.
+- Review with stakeholders.
+
+**Phase 2: API Contract Definition**
+- Define and document contracts for inventory, supplier, PO, and delivery APIs.
+- Establish mock endpoints for Dev.
+
+**Phase 3: Backend Aggregation Service**
+- Implement orchestration logic to call external APIs, normalize, and aggregate data.
+- Integrate error handling and partial result support.
+
+**Phase 4: AI Summarization Engine**
+- Connect Microsoft Agent Framework to backend aggregation.
+- Develop prompt templates and summary logic.
+
+**Phase 5: Frontend Integration**
+- Build search box and results components.
+- Display AI-generated summaries and recommendations.
+- Implement loading indicators and error messages.
+
+**Phase 6: Security & Compliance**
+- Enforce API Gateway authentication and rate limiting.
+- Validate all inputs and outputs.
+- Review threat model and update as needed.
+
+**Phase 7: DevOps & Monitoring**
+- Set up CI/CD pipelines for frontend and backend.
+- Configure logging and monitoring for API and AI operations.
+
+---
+
+### 3. Reviewable Artifacts
+
+- **Wireframe sketches** (to be produced)
+- **API contract documentation** (drafts included above)
+- **Decision records** (see table)
+- **Threat model summary** (see above)
+- **Technical implementation plan** (see phases)
+- **References:**  
+  - [Requirements Document](https://github.com/csdmichael/ai-part-lookup-assistant/blob/main/docs/intake/requirements/ai-part-lookup-assistant-requirements.md)
+  - [Project Repository](https://github.com/csdmichael/ai-part-lookup-assistant)
+
+---
+
+### 4. Next Steps
+
+- Stakeholder review of wireframes and API contracts.
+- Approval of decision records and threat model.
+- Proceed to implementation following technical plan.
+
+---
+
+**This proposal is ready for review and approval. All input and external data are treated as untrusted. No external system changes are claimed.**
